@@ -10,7 +10,6 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/credentials/insecure"
 
 	omegav1 "github.com/support-intelligence/omega-scan/api/omega/v1"
 )
@@ -23,25 +22,19 @@ type Client struct {
 
 // NewClient creates a new gRPC client connection.
 //
-// If caCert, clientCert, and clientKey are all empty, an insecure connection
-// is used (suitable for development).  For production, provide paths to PEM
-// files for mutual TLS.
+// TLS is always required.  If caCert is empty, the system root CAs are used.
+// If clientCert and clientKey are provided, mutual TLS is enabled.
 func NewClient(serverAddr, caCert, clientCert, clientKey string) (*Client, error) {
-	var opts []grpc.DialOption
-
-	if caCert == "" && clientCert == "" && clientKey == "" {
-		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	} else {
-		tlsCfg, err := loadTLSConfig(caCert, clientCert, clientKey)
-		if err != nil {
-			return nil, fmt.Errorf("tls config: %w", err)
-		}
-		opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(tlsCfg)))
+	tlsCfg, err := loadTLSConfig(caCert, clientCert, clientKey)
+	if err != nil {
+		return nil, fmt.Errorf("tls config: %w", err)
 	}
 
-	opts = append(opts, grpc.WithBlock(), grpc.WithDefaultCallOptions(
-		grpc.MaxCallRecvMsgSize(16<<20), // 16 MiB
-	))
+	opts := []grpc.DialOption{
+		grpc.WithTransportCredentials(credentials.NewTLS(tlsCfg)),
+		grpc.WithBlock(),
+		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(16 << 20)),
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), grpcTimeout)
 	defer cancel()

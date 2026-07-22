@@ -64,13 +64,12 @@ Flags:
 
 func scanCmd() {
 	fs := flag.NewFlagSet("scan", flag.ExitOnError)
-	serverAddr := fs.String("server", "", "gRPC server address (e.g. localhost:8443)")
-	tlsCA := fs.String("tls-ca", "", "CA certificate PEM file")
-	tlsCert := fs.String("tls-cert", "", "Client certificate PEM file")
-	tlsKey := fs.String("tls-key", "", "Client key PEM file")
+	serverAddr := fs.String("server", "", "gRPC server address (TLS required)")
+	tlsCA := fs.String("tls-ca", "", "CA certificate PEM file (default: system roots)")
+	tlsCert := fs.String("tls-cert", "", "Client certificate PEM file (mTLS)")
+	tlsKey := fs.String("tls-key", "", "Client key PEM file (mTLS)")
 	fpOrder := fs.Int("order", 0, "Hilbert curve order (0=auto)")
 	jsonOut := fs.Bool("json", false, "Output JSON")
-	noLookup := fs.Bool("no-lookup", false, "Skip gRPC lookup")
 	_ = fs.String("debug", "", "") // reserved
 
 	fs.Parse(os.Args[2:])
@@ -94,7 +93,7 @@ func scanCmd() {
 
 	// ── gRPC client (optional) ────────────────────────────────────────────
 	var tc *threat.Client
-	if *serverAddr != "" && !*noLookup {
+	if *serverAddr != "" {
 		var err error
 		tc, err = threat.NewClient(*serverAddr, *tlsCA, *tlsCert, *tlsKey)
 		if err != nil {
