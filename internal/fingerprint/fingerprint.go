@@ -47,7 +47,7 @@ func FingerprintBuffer(data []byte) ([16]byte, error) {
 
 	// Step 2: Allocate and zero the map buffer.
 	mapBuf := make([]byte, mapSize)
-	zeroBufferGo(mapBuf)
+	zeroBuffer(mapBuf)
 
 	// Step 3: Map source bytes to Hilbert curve positions.
 	// Use dim (from CalculateOrder), not c.Dimension (from the cached
