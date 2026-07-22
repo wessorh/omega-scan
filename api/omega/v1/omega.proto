@@ -1,0 +1,159 @@
+syntax = "proto3";
+
+package omega.v1;
+
+option go_package = "github.com/support-intelligence/omega-scan/api/omega/v1;omegav1";
+
+// OmegaScan is the threat scanning and lookup service.
+service OmegaScan {
+    // Lookup queries threat intelligence for a scanned artifact.
+    // The client computes SHA1, SHA256, and holloman3 clusterid locally,
+    // then calls Lookup to retrieve a threat assessment.
+    rpc Lookup(LookupRequest) returns (LookupResponse);
+
+    // Submit reports a scan result back to the server for aggregation.
+    // Optional — used when the scanner is deployed in fleet mode and
+    // results should be collected centrally.
+    rpc Submit(SubmitRequest) returns (SubmitResponse);
+}
+
+// ArtifactType distinguishes how the artifact was obtained.
+enum ArtifactType {
+    ARTIFACT_TYPE_UNSPECIFIED = 0;
+    ARTIFACT_TYPE_FILE        = 1;
+    ARTIFACT_TYPE_URL         = 2;
+}
+
+// LookupRequest carries the identifiers computed by the scanner.
+message LookupRequest {
+    // cluster_id is the holloman3 perceptual hash in the format
+    // "<order_char>.<32_hex_fingerprint>", e.g. "h.00286058000750550000040500000000".
+    string cluster_id = 1;
+
+    // sha1 is the hex-encoded SHA-1 of the scanned artifact (40 hex chars).
+    string sha1 = 2;
+
+    // sha256 is the hex-encoded SHA-256 of the scanned artifact (64 hex chars).
+    string sha256 = 3;
+
+    // artifact_type tells the server how the artifact was obtained.
+    ArtifactType artifact_type = 4;
+
+    // uri is populated for URL artifacts (the URL that was fetched).
+    string uri = 5;
+
+    // client_id is an optional machine or deployment identifier for rate
+    // limiting and analytics.
+    string client_id = 6;
+}
+
+// LookupResponse carries the threat assessment for the queried artifact.
+message LookupResponse {
+    // request_id is a server-assigned identifier for this lookup (for logging).
+    string request_id = 1;
+
+    // malicious is true if the artifact is known to be malicious.
+    bool malicious = 2;
+
+    // threat_score is a 0–100 score where higher values indicate greater
+    // confidence that the artifact is malicious.
+    uint32 threat_score = 3;
+
+    // severity indicates the impact level if the artifact is malicious.
+    Severity severity = 4;
+
+    // family is the malware family name assigned by threat intelligence
+    // (e.g. "trojan.eshopscam", "phishing.redirba").
+    string family = 5;
+
+    // category is the threat category (e.g. "antivirus", "code-injection").
+    string category = 6;
+
+    // tags are free-form labels associated with the artifact's cluster.
+    repeated string tags = 7;
+
+    // av_detections is the number of AV engines that flagged the artifact
+    // on VirusTotal (if available).
+    uint32 av_detections = 8;
+
+    // av_total is the total number of AV engines that scanned the artifact.
+    uint32 av_total = 9;
+
+    // first_seen is the Unix timestamp (seconds) when the artifact was
+    // first observed.
+    int64 first_seen = 10;
+
+    // last_seen is the Unix timestamp (seconds) when the artifact was
+    // most recently observed.
+    int64 last_seen = 11;
+
+    // cluster_size is the number of distinct files in this artifact's
+    // holloman cluster.
+    uint64 cluster_size = 12;
+
+    // nearest_neighbors lists the closest clusters by Hamming distance,
+    // useful for understanding variant families.
+    repeated Neighbor nearest_neighbors = 13;
+}
+
+// Neighbor describes a nearby cluster in fingerprint space.
+message Neighbor {
+    // cluster_id is the neighboring cluster's identifier.
+    string cluster_id = 1;
+
+    // hamming_distance is the bit-level Hamming distance between the
+    // query fingerprint and this neighbor.
+    uint32 hamming_distance = 2;
+
+    // family is the malware family of the neighboring cluster.
+    string family = 3;
+
+    // cluster_size is the number of files in the neighboring cluster.
+    uint64 cluster_size = 4;
+}
+
+// Severity levels mirror the TLP-inspired scale used in threat attestation.
+enum Severity {
+    SEVERITY_UNSPECIFIED = 0;
+    SEVERITY_INFO        = 1;
+    SEVERITY_LOW         = 2;
+    SEVERITY_MEDIUM      = 3;
+    SEVERITY_HIGH        = 4;
+    SEVERITY_CRITICAL    = 5;
+}
+
+// SubmitRequest reports a completed scan to the server.
+message SubmitRequest {
+    // artifact_type indicates whether this was a file or URL scan.
+    ArtifactType artifact_type = 1;
+
+    // uri is populated for URL artifacts.
+    string uri = 2;
+
+    // sha1 is the hex-encoded SHA-1 of the scanned artifact.
+    string sha1 = 3;
+
+    // sha256 is the hex-encoded SHA-256 of the scanned artifact.
+    string sha256 = 4;
+
+    // cluster_id is the holloman3 cluster identifier.
+    string cluster_id = 5;
+
+    // file_size is the size of the scanned artifact in bytes.
+    uint64 file_size = 6;
+
+    // mime_type is the detected MIME type (for FILE artifacts).
+    string mime_type = 7;
+
+    // client_id is a machine or deployment identifier.
+    string client_id = 8;
+}
+
+// SubmitResponse acknowledges receipt of a scan report.
+message SubmitResponse {
+    // accepted is true if the server accepted the submission.
+    bool accepted = 1;
+
+    // message provides additional context (e.g. rejection reason).
+    string message = 2;
+}
