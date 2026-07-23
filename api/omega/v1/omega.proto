@@ -45,6 +45,9 @@ message LookupRequest {
     // client_id is an optional machine or deployment identifier for rate
     // limiting and analytics.
     string client_id = 6;
+
+    // api_token is an optional bearer token that grants higher rate limits.
+    string api_token = 7;
 }
 
 // LookupResponse carries the threat assessment for the queried artifact.

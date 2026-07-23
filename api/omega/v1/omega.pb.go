@@ -146,7 +146,9 @@ type LookupRequest struct {
 	Uri string `protobuf:"bytes,5,opt,name=uri,proto3" json:"uri,omitempty"`
 	// client_id is an optional machine or deployment identifier for rate
 	// limiting and analytics.
-	ClientId      string `protobuf:"bytes,6,opt,name=client_id,json=clientId,proto3" json:"client_id,omitempty"`
+	ClientId string `protobuf:"bytes,6,opt,name=client_id,json=clientId,proto3" json:"client_id,omitempty"`
+	// api_token is an optional bearer token that grants higher rate limits.
+	ApiToken      string `protobuf:"bytes,7,opt,name=api_token,json=apiToken,proto3" json:"api_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -219,6 +221,13 @@ func (x *LookupRequest) GetUri() string {
 func (x *LookupRequest) GetClientId() string {
 	if x != nil {
 		return x.ClientId
+	}
+	return ""
+}
+
+func (x *LookupRequest) GetApiToken() string {
+	if x != nil {
+		return x.ApiToken
 	}
 	return ""
 }
@@ -626,7 +635,7 @@ var File_api_omega_v1_omega_proto protoreflect.FileDescriptor
 
 const file_api_omega_v1_omega_proto_rawDesc = "" +
 	"\n" +
-	"\x18api/omega/v1/omega.proto\x12\bomega.v1\"\xc6\x01\n" +
+	"\x18api/omega/v1/omega.proto\x12\bomega.v1\"\xe3\x01\n" +
 	"\rLookupRequest\x12\x1d\n" +
 	"\n" +
 	"cluster_id\x18\x01 \x01(\tR\tclusterId\x12\x12\n" +
@@ -634,7 +643,8 @@ const file_api_omega_v1_omega_proto_rawDesc = "" +
 	"\x06sha256\x18\x03 \x01(\tR\x06sha256\x12;\n" +
 	"\rartifact_type\x18\x04 \x01(\x0e2\x16.omega.v1.ArtifactTypeR\fartifactType\x12\x10\n" +
 	"\x03uri\x18\x05 \x01(\tR\x03uri\x12\x1b\n" +
-	"\tclient_id\x18\x06 \x01(\tR\bclientId\"\xc8\x03\n" +
+	"\tclient_id\x18\x06 \x01(\tR\bclientId\x12\x1b\n" +
+	"\tapi_token\x18\a \x01(\tR\bapiToken\"\xc8\x03\n" +
 	"\x0eLookupResponse\x12\x1d\n" +
 	"\n" +
 	"request_id\x18\x01 \x01(\tR\trequestId\x12\x1c\n" +

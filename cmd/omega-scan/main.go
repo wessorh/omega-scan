@@ -25,12 +25,21 @@ import (
 	"strings"
 	"time"
 
+	"github.com/denisbrodbeck/machineid"
 	"github.com/support-intelligence/omega-scan/internal/fingerprint"
 	"github.com/support-intelligence/omega-scan/internal/scanner"
 	"github.com/support-intelligence/omega-scan/internal/threat"
 
 	omegav1 "github.com/support-intelligence/omega-scan/api/omega/v1"
 )
+
+func getMachineID() string {
+	id, err := machineid.ID()
+	if err != nil {
+		return "unknown"
+	}
+	return id
+}
 
 func main() {
 	if len(os.Args) < 2 {
@@ -68,9 +77,10 @@ func scanCmd() {
 	tlsCA := fs.String("tls-ca", "", "CA certificate PEM file (default: system roots)")
 	tlsCert := fs.String("tls-cert", "", "Client certificate PEM file (mTLS)")
 	tlsKey := fs.String("tls-key", "", "Client key PEM file (mTLS)")
+	apiToken := fs.String("api-token", "", "API token for higher rate limits")
 	fpOrder := fs.Int("order", 0, "Hilbert curve order (0=auto)")
 	jsonOut := fs.Bool("json", false, "Output JSON")
-	_ = fs.String("debug", "", "") // reserved
+	verbose := fs.Bool("v", false, "Verbose: print machine ID")
 
 	fs.Parse(os.Args[2:])
 	targets := fs.Args()
@@ -90,6 +100,12 @@ func scanCmd() {
 	}
 	defer fingerprint.Cleanup()
 	log.Printf("fingerprint library ready")
+
+	// ── Machine ID ────────────────────────────────────────────────────────
+	machineID := getMachineID()
+	if *verbose {
+		fmt.Fprintf(os.Stderr, "machine-id: %s\n", machineID)
+	}
 
 	// ── gRPC client (optional) ────────────────────────────────────────────
 	var tc *threat.Client
@@ -156,6 +172,8 @@ func scanCmd() {
 				Sha1:         result.SHA1,
 				Sha256:       result.SHA256,
 				ArtifactType: omegav1.ArtifactType_ARTIFACT_TYPE_FILE,
+				ClientId:     machineID,
+				ApiToken:     *apiToken,
 			}
 			if strings.HasPrefix(result.Path, "http") {
 				req.ArtifactType = omegav1.ArtifactType_ARTIFACT_TYPE_URL
