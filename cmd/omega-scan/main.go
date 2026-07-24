@@ -74,10 +74,11 @@ Flags:
 
 func scanCmd() {
 	fs := flag.NewFlagSet("scan", flag.ExitOnError)
-	serverAddr := fs.String("server", "", "gRPC server address (TLS required)")
+	serverAddr := fs.String("server", "", "gRPC server address")
 	tlsCA := fs.String("tls-ca", "", "CA certificate PEM file (default: system roots)")
 	tlsCert := fs.String("tls-cert", "", "Client certificate PEM file (mTLS)")
 	tlsKey := fs.String("tls-key", "", "Client key PEM file (mTLS)")
+	insecureConn := fs.Bool("insecure", false, "Skip TLS (for development servers)")
 	apiToken := fs.String("api-token", "", "API token for higher rate limits")
 	fpOrder := fs.Int("order", 0, "Hilbert curve order (0=auto)")
 	jsonOut := fs.Bool("json", false, "Output JSON")
@@ -112,7 +113,7 @@ func scanCmd() {
 	var tc *threat.Client
 	if *serverAddr != "" {
 		var err error
-		tc, err = threat.NewClient(*serverAddr, *tlsCA, *tlsCert, *tlsKey)
+		tc, err = threat.NewClient(*serverAddr, *tlsCA, *tlsCert, *tlsKey, *insecureConn)
 		if err != nil {
 			log.Fatalf("gRPC client: %v", err)
 		}
