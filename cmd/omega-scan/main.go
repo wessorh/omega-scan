@@ -121,23 +121,14 @@ func scanCmd() {
 
 	cfg := scanner.DefaultConfig()
 
-	// ── Scan loop ─────────────────────────────────────────────────────────
-	for i, target := range targets {
-		if i > 0 && !*jsonOut {
-			fmt.Println()
-		}
-
-		result, err := scanner.Scan(target, cfg)
-		if err != nil {
-			if *jsonOut {
-				json.NewEncoder(os.Stdout).Encode(map[string]string{
-					"target": target,
-					"error":  err.Error(),
-				})
-			} else {
-				fmt.Fprintf(os.Stderr, "%s: ERROR: %v\n", target, err)
+	// ── Scan callback ─────────────────────────────────────────────────────
+	first := true
+	printResult := func(result *scanner.Result) {
+		if !*jsonOut {
+			if !first {
+				fmt.Println()
 			}
-			continue
+			first = false
 		}
 
 		if *jsonOut {
@@ -151,7 +142,7 @@ func scanCmd() {
 				"elapsed":    result.Elapsed.String(),
 			}
 			json.NewEncoder(os.Stdout).Encode(output)
-			continue
+			return
 		}
 
 		// Human-readable output
@@ -200,14 +191,21 @@ func scanCmd() {
 				if resp.ClusterSize > 0 {
 					fmt.Printf("%-42s %d\n", "Cluster Size:", resp.ClusterSize)
 				}
-				if len(resp.NearestNeighbors) > 0 {
-					fmt.Printf("%-42s\n", "Nearest Neighbors:")
-					for _, n := range resp.NearestNeighbors {
-						fmt.Printf("  %-40s hamming=%d family=%s size=%d\n",
-							n.ClusterId, n.HammingDistance,
-							n.Family, n.ClusterSize)
-					}
-				}
+			}
+		}
+	}
+
+	// ── Scan loop ─────────────────────────────────────────────────────────
+	for _, target := range targets {
+		_, err := scanner.Scan(target, cfg, printResult)
+		if err != nil {
+			if *jsonOut {
+				json.NewEncoder(os.Stdout).Encode(map[string]string{
+					"target": target,
+					"error":  err.Error(),
+				})
+			} else {
+				fmt.Fprintf(os.Stderr, "%s: ERROR: %v\n", target, err)
 			}
 		}
 	}

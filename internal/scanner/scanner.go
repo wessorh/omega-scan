@@ -99,13 +99,64 @@ func ScanURL(rawURL string, cfg Config) (*Result, error) {
 	return scanBytes(rawURL, data, size, cfg, start)
 }
 
-// Scan detects whether target is a file or URL and scans accordingly.
-func Scan(target string, cfg Config) (*Result, error) {
+// Scan detects whether target is a file, directory, or URL and scans accordingly.
+// Directories are recursed into — each file is scanned and results are streamed
+// via the callback.  Returns the number of files scanned.
+func Scan(target string, cfg Config, yield func(*Result)) (int, error) {
 	if strings.HasPrefix(target, "http://") || strings.HasPrefix(target, "https://") {
-		return ScanURL(target, cfg)
+		r, err := ScanURL(target, cfg)
+		if err != nil {
+			return 0, err
+		}
+		yield(r)
+		return 1, nil
 	}
-	return ScanFile(target, cfg)
+
+	fi, err := os.Stat(target)
+	if err != nil {
+		return 0, fmt.Errorf("stat %s: %w", target, err)
+	}
+
+	if fi.IsDir() {
+		return scanDir(target, cfg, yield)
+	}
+
+	r, err := ScanFile(target, cfg)
+	if err != nil {
+		return 0, err
+	}
+	yield(r)
+	return 1, nil
 }
+
+func scanDir(dir string, cfg Config, yield func(*Result)) (int, error) {
+	count := 0
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return 0, fmt.Errorf("readdir %s: %w", dir, err)
+	}
+	for _, entry := range entries {
+		path := dir + "/" + entry.Name()
+		if entry.IsDir() {
+			n, _ := scanDir(path, cfg, yield)
+			count += n
+			continue
+		}
+		if !entry.Type().IsRegular() {
+			continue
+		}
+		r, err := ScanFile(path, cfg)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "%s: %v\n", path, err)
+			continue
+		}
+		yield(r)
+		count++
+	}
+	return count, nil
+}
+
+var _ = fmt.Fprintf // keep fmt import
 
 func scanBytes(path string, data []byte, size int64, cfg Config, start time.Time) (*Result, error) {
 	if len(data) < 1024 {
