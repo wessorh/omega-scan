@@ -5,11 +5,9 @@ import (
 	"fmt"
 )
 
-// ── Public API ─────────────────────────────────────────────────────────
-
 // Version returns the fingerprint library version string.
 func Version() string {
-	return "omega-scan-holloman3 1.0.0 (pure-go)"
+	return "omega-scan-holloman3 1.0.0 (pure-go + Plan 9 asm)"
 }
 
 // FingerprintBuffer computes a 16-byte holloman3 perceptual fingerprint
@@ -20,6 +18,9 @@ func Version() string {
 //
 //	bytes → Hilbert map (1D→2D) → Lanczos-3 vertical (N×N → N×4)
 //	      → Lanczos-3 horizontal (N×4 → 4×4) → rotate 90° → [16]byte
+//
+// Hilbert curve generation uses AVX2 Plan 9 assembly when available,
+// falling back to pure Go on other architectures.
 //
 // Returns an error if the fingerprint library has not been initialised
 // or if the input is too small.
@@ -39,7 +40,7 @@ func FingerprintBuffer(data []byte) ([16]byte, error) {
 	order, dim := CalculateOrder(int64(len(data)))
 	dimInt := int(dim)
 	mapSize := dimInt * dimInt
-	pointsNeeded := uint64(mapSize) // 4^order
+	pointsNeeded := uint64(mapSize)
 
 	if c.Order < order {
 		return fp, fmt.Errorf("fingerprint: cached curve order %d < required %d", c.Order, order)
@@ -50,9 +51,6 @@ func FingerprintBuffer(data []byte) ([16]byte, error) {
 	zeroBuffer(mapBuf)
 
 	// Step 3: Map source bytes to Hilbert curve positions.
-	// Use dim (from CalculateOrder), not c.Dimension (from the cached
-	// higher-order curve).  The first 4^order points of a larger Hilbert
-	// curve are identical to an order-N curve of that exact size.
 	nPoints := uint64(len(c.Points))
 	for i := 0; i < len(data) && uint64(i) < pointsNeeded && uint64(i) < nPoints; i++ {
 		x, y := c.Points[i].Unpack()

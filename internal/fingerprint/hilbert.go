@@ -3,6 +3,7 @@ package fingerprint
 import (
 	"fmt"
 	"sync"
+	"unsafe"
 )
 
 // PackedCoord stores a 2D Hilbert coordinate as a single uint64:
@@ -28,7 +29,8 @@ type Curve struct {
 	Points    []PackedCoord // 4^order packed coordinates, index = distance
 }
 
-// NewCurve generates a Hilbert curve of the given order.
+// NewCurve generates a Hilbert curve of the given order using the
+// AVX2-accelerated d2xy batch assembly (Plan 9 asm).
 //
 // The curve maps a 1D distance (0 .. 4^order-1) to a 2D (x, y)
 // coordinate on a grid of size 2^order × 2^order.
@@ -49,26 +51,36 @@ func NewCurve(order uint32) (*Curve, error) {
 		Points:    make([]PackedCoord, nPoints),
 	}
 
-	// Standard iterative d2xy: for each distance d, compute (x, y)
-	// using the bit-flip algorithm.  This matches the scalar fallback
-	// in hilbert_avx2.s.
-	for d := uint64(0); d < nPoints; d++ {
-		x, y := d2xy(order, d)
-		c.Points[d] = PackCoord(x, y)
+	if nPoints > 0 && isAVX2Available() {
+		// Build a sequential distance array.
+		distances := make([]uint32, nPoints)
+		for d := uint64(0); d < nPoints; d++ {
+			distances[d] = uint32(d)
+		}
+		// Call the AVX2 Plan 9 assembly batch converter.
+		hilbertD2XYBatchAVX2(
+			&distances[0],
+			(*uint64)(unsafe.Pointer(&c.Points[0])),
+			nPoints,
+			order,
+		)
+	} else {
+		// Scalar fallback for non-AVX2 platforms.
+		for d := uint64(0); d < nPoints; d++ {
+			x, y := d2xyScalar(order, d)
+			c.Points[d] = PackCoord(x, y)
+		}
 	}
 
 	return c, nil
 }
 
-// d2xy converts a Hilbert distance d to an (x, y) coordinate pair on
-// a 2^order × 2^order grid.  This is the standard iterative algorithm
-// (Lam & Shapiro, 1981).
-func d2xy(order uint32, d uint64) (x, y uint32) {
+// d2xyScalar is the pure-Go fallback Hilbert d2xy algorithm.
+func d2xyScalar(order uint32, d uint64) (x, y uint32) {
 	n := uint32(1) << order
 	var rx, ry uint32
 
 	for s := uint32(1); s < n; s <<= 1 {
-		// Extract bits: rx = bit 0 of d/2, ry = bit 0 of (d XOR rx)
 		rx = uint32((d >> 1) & 1)
 		ry = uint32((d ^ uint64(rx)) & 1)
 		rot(s, &x, &y, rx, ry)
@@ -86,7 +98,6 @@ func rot(n uint32, x, y *uint32, rx, ry uint32) {
 			*x = n - 1 - *x
 			*y = n - 1 - *y
 		}
-		// Swap x and y
 		*x, *y = *y, *x
 	}
 }
