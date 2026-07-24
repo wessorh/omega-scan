@@ -52,6 +52,7 @@ func main() {
 		scanCmd()
 	case "version":
 		fmt.Println(fingerprint.Version())
+		fmt.Println("machine-id:", getMachineID())
 	default:
 		printUsage()
 		os.Exit(1)
