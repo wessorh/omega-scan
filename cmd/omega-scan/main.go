@@ -79,7 +79,9 @@ func scanCmd() {
 	tlsCert := fs.String("tls-cert", "", "Client certificate PEM file (mTLS)")
 	tlsKey := fs.String("tls-key", "", "Client key PEM file (mTLS)")
 	insecureConn := fs.Bool("insecure", false, "Skip TLS (for development servers)")
+	tlsServerName := fs.String("tls-server-name", "", "Override TLS hostname (for IP connections to named certs)")
 	apiToken := fs.String("api-token", "", "API token for higher rate limits")
+	errorsAsWarnings := fs.Bool("errors-as-warnings", false, "Continue processing directory after errors")
 	fpOrder := fs.Int("order", 0, "Hilbert curve order (0=auto)")
 	jsonOut := fs.Bool("json", false, "Output JSON")
 	verbose := fs.Bool("v", false, "Verbose: print machine ID")
@@ -113,7 +115,7 @@ func scanCmd() {
 	var tc *threat.Client
 	if *serverAddr != "" {
 		var err error
-		tc, err = threat.NewClient(*serverAddr, *tlsCA, *tlsCert, *tlsKey, *insecureConn)
+		tc, err = threat.NewClient(*serverAddr, *tlsCA, *tlsCert, *tlsKey, *tlsServerName, *insecureConn)
 		if err != nil {
 			log.Fatalf("gRPC client: %v", err)
 		}
@@ -124,7 +126,15 @@ func scanCmd() {
 
 	// ── Scan callback ─────────────────────────────────────────────────────
 	first := true
-	printResult := func(result *scanner.Result) {
+	printResult := func(result *scanner.Result) bool {
+		// nil result means an error occurred on a file in the directory.
+		if result == nil {
+			if *errorsAsWarnings {
+				return true // continue
+			}
+			return false // stop
+		}
+
 		if !*jsonOut {
 			if !first {
 				fmt.Println()
@@ -143,7 +153,7 @@ func scanCmd() {
 				"elapsed":    result.Elapsed.String(),
 			}
 			json.NewEncoder(os.Stdout).Encode(output)
-			return
+			return true
 		}
 
 		// Human-readable output
@@ -194,6 +204,7 @@ func scanCmd() {
 				}
 			}
 		}
+		return true
 	}
 
 	// ── Scan loop ─────────────────────────────────────────────────────────

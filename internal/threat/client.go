@@ -26,7 +26,9 @@ type Client struct {
 // By default, TLS is used with system root CAs.  Pass insecure=true
 // to skip TLS (for development servers without certificates).
 // Pass caCert to use a custom CA.  Pass clientCert+clientKey for mTLS.
-func NewClient(serverAddr, caCert, clientCert, clientKey string, insecureConn bool) (*Client, error) {
+// Pass tlsServerName to override the TLS hostname check (useful when
+// connecting by IP to a server with a named certificate).
+func NewClient(serverAddr, caCert, clientCert, clientKey, tlsServerName string, insecureConn bool) (*Client, error) {
 	var opts []grpc.DialOption
 
 	if insecureConn {
@@ -36,20 +38,23 @@ func NewClient(serverAddr, caCert, clientCert, clientKey string, insecureConn bo
 		if err != nil {
 			return nil, fmt.Errorf("tls config: %w", err)
 		}
+		if tlsServerName != "" {
+			tlsCfg.ServerName = tlsServerName
+		}
 		opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(tlsCfg)))
 	}
 
 	opts = append(opts,
-		grpc.WithBlock(),
 		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(16<<20)),
 	)
 
-	ctx, cancel := context.WithTimeout(context.Background(), grpcTimeout)
-	defer cancel()
-
-	conn, err := grpc.DialContext(ctx, serverAddr, opts...)
+	conn, err := grpc.DialContext(context.Background(), serverAddr, opts...)
 	if err != nil {
-		return nil, fmt.Errorf("dial %s: %w", serverAddr, err)
+		hint := ""
+		if !insecureConn {
+			hint = " (is the server using a self-signed cert? try --insecure)"
+		}
+		return nil, fmt.Errorf("dial %s: %w%s", serverAddr, err, hint)
 	}
 
 	return &Client{

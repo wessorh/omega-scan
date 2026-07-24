@@ -102,7 +102,9 @@ func ScanURL(rawURL string, cfg Config) (*Result, error) {
 // Scan detects whether target is a file, directory, or URL and scans accordingly.
 // Directories are recursed into — each file is scanned and results are streamed
 // via the callback.  Returns the number of files scanned.
-func Scan(target string, cfg Config, yield func(*Result)) (int, error) {
+//
+// The yield callback should return true to continue scanning, false to abort.
+func Scan(target string, cfg Config, yield func(*Result) bool) (int, error) {
 	if strings.HasPrefix(target, "http://") || strings.HasPrefix(target, "https://") {
 		r, err := ScanURL(target, cfg)
 		if err != nil {
@@ -129,7 +131,7 @@ func Scan(target string, cfg Config, yield func(*Result)) (int, error) {
 	return 1, nil
 }
 
-func scanDir(dir string, cfg Config, yield func(*Result)) (int, error) {
+func scanDir(dir string, cfg Config, yield func(*Result) bool) (int, error) {
 	count := 0
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -138,8 +140,11 @@ func scanDir(dir string, cfg Config, yield func(*Result)) (int, error) {
 	for _, entry := range entries {
 		path := dir + "/" + entry.Name()
 		if entry.IsDir() {
-			n, _ := scanDir(path, cfg, yield)
+			n, abort := scanDir(path, cfg, yield)
 			count += n
+			if abort != nil {
+				return count, abort
+			}
 			continue
 		}
 		if !entry.Type().IsRegular() {
@@ -148,9 +153,14 @@ func scanDir(dir string, cfg Config, yield func(*Result)) (int, error) {
 		r, err := ScanFile(path, cfg)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "%s: %v\n", path, err)
+			if !yield(nil) {
+				return count, fmt.Errorf("aborted after error in %s", path)
+			}
 			continue
 		}
-		yield(r)
+		if !yield(r) {
+			return count, nil
+		}
 		count++
 	}
 	return count, nil
