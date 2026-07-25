@@ -22,8 +22,11 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
+	"sort"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/denisbrodbeck/machineid"
@@ -87,6 +90,7 @@ func scanCmd() {
 	jsonOut := fs.Bool("json", false, "Output JSON")
 	verbose := fs.Bool("v", false, "Verbose: print machine ID")
 	threads := fs.Int("threads", 2, "Number of parallel scan workers")
+	statsOut := fs.Bool("stats", false, "Print aggregate statistics at exit")
 
 	fs.Parse(os.Args[2:])
 	targets := fs.Args()
@@ -122,6 +126,87 @@ func scanCmd() {
 			log.Fatalf("gRPC client: %v", err)
 		}
 		defer tc.Close()
+	}
+
+	// ── Stats ───────────────────────────────────────────────────────────────
+	type stats struct {
+		mu          sync.Mutex
+		calls       int
+		malicious   int
+		undetected  int
+		families    map[string]int
+		categories  map[string]int
+		severities  map[string]int
+	}
+	st := &stats{
+		families:   make(map[string]int),
+		categories: make(map[string]int),
+		severities: make(map[string]int),
+	}
+	recordStats := func(resp *omegav1.LookupResponse) {
+		if resp == nil {
+			return
+		}
+		st.mu.Lock()
+		defer st.mu.Unlock()
+		st.calls++
+		if resp.Malicious {
+			st.malicious++
+		} else {
+			st.undetected++
+		}
+		if resp.Family != "" {
+			st.families[resp.Family]++
+		}
+		if resp.Category != "" {
+			st.categories[resp.Category]++
+		}
+		st.severities[resp.Severity.String()]++
+	}
+	printStats := func() {
+		st.mu.Lock()
+		defer st.mu.Unlock()
+		fmt.Fprintf(os.Stderr, "\n── Scan Statistics ──\n")
+		fmt.Fprintf(os.Stderr, "  Total lookups:     %d\n", st.calls)
+		fmt.Fprintf(os.Stderr, "  Malicious:         %d\n", st.malicious)
+		fmt.Fprintf(os.Stderr, "  Undetected/clean:  %d\n", st.undetected)
+		fmt.Fprintf(os.Stderr, "  Severities:\n")
+		for _, s := range []string{"SEVERITY_CRITICAL", "SEVERITY_HIGH", "SEVERITY_MEDIUM", "SEVERITY_LOW", "SEVERITY_INFO", "SEVERITY_UNSPECIFIED"} {
+			if n, ok := st.severities[s]; ok {
+				fmt.Fprintf(os.Stderr, "    %-22s %d\n", strings.TrimPrefix(s, "SEVERITY_"), n)
+			}
+		}
+		if len(st.families) > 0 {
+			fmt.Fprintf(os.Stderr, "  Top families:\n")
+			type kv struct{ k string; v int }
+			var fams []kv
+			for k, v := range st.families { fams = append(fams, kv{k, v}) }
+			sort.Slice(fams, func(i, j int) bool { return fams[i].v > fams[j].v })
+			for _, f := range fams[:min(10, len(fams))] {
+				fmt.Fprintf(os.Stderr, "    %-40s %d\n", f.k, f.v)
+			}
+		}
+		if len(st.categories) > 0 {
+			fmt.Fprintf(os.Stderr, "  Categories:\n")
+			type kv struct{ k string; v int }
+			var cats []kv
+			for k, v := range st.categories { cats = append(cats, kv{k, v}) }
+			sort.Slice(cats, func(i, j int) bool { return cats[i].v > cats[j].v })
+			for _, c := range cats[:min(5, len(cats))] {
+				fmt.Fprintf(os.Stderr, "    %-40s %d\n", c.k, c.v)
+			}
+		}
+	}
+	if *statsOut {
+		defer printStats()
+		// Print on Ctrl+C as well.
+		sigCh := make(chan os.Signal, 1)
+		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+		go func() {
+			<-sigCh
+			printStats()
+			os.Exit(0)
+		}()
 	}
 
 	cfg := scanner.DefaultConfig()
@@ -194,6 +279,7 @@ func scanCmd() {
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "  gRPC lookup: ERROR: %v\n", err)
 			} else {
+				recordStats(resp)
 				fmt.Printf("%-42s %t\n", "Malicious:", resp.Malicious)
 				fmt.Printf("%-42s %d\n", "Threat Score:", resp.ThreatScore)
 				fmt.Printf("%-42s %s\n", "Severity:", resp.Severity.String())
