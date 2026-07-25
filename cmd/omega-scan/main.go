@@ -23,6 +23,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/denisbrodbeck/machineid"
@@ -85,6 +86,7 @@ func scanCmd() {
 	fpOrder := fs.Int("order", 0, "Hilbert curve order (0=auto)")
 	jsonOut := fs.Bool("json", false, "Output JSON")
 	verbose := fs.Bool("v", false, "Verbose: print machine ID")
+	threads := fs.Int("threads", 2, "Number of parallel scan workers")
 
 	fs.Parse(os.Args[2:])
 	targets := fs.Args()
@@ -124,9 +126,14 @@ func scanCmd() {
 
 	cfg := scanner.DefaultConfig()
 
-	// ── Scan callback ─────────────────────────────────────────────────────
-	first := true
+	// ── Scan callback (thread-safe for parallel workers) ──────────────────
+	var (
+		first   = true
+		outMu   sync.Mutex
+	)
 	printResult := func(result *scanner.Result) bool {
+		outMu.Lock()
+		defer outMu.Unlock()
 		// nil result means an error occurred on a file in the directory.
 		if result == nil {
 			if *errorsAsWarnings {
@@ -207,18 +214,83 @@ func scanCmd() {
 		return true
 	}
 
-	// ── Scan loop ─────────────────────────────────────────────────────────
+	// ── Collect file paths from all targets ────────────────────────────────
+	var files []string
 	for _, target := range targets {
-		_, err := scanner.Scan(target, cfg, printResult)
-		if err != nil {
-			if *jsonOut {
-				json.NewEncoder(os.Stdout).Encode(map[string]string{
-					"target": target,
-					"error":  err.Error(),
-				})
-			} else {
-				fmt.Fprintf(os.Stderr, "%s: ERROR: %v\n", target, err)
+		collectFiles(target, &files)
+	}
+	if len(files) == 0 {
+		fmt.Fprintln(os.Stderr, "error: no files to scan")
+		os.Exit(1)
+	}
+
+	// ── Worker pool ───────────────────────────────────────────────────────
+	nWorkers := *threads
+	if nWorkers < 1 {
+		nWorkers = 1
+	}
+	if nWorkers > len(files) {
+		nWorkers = len(files)
+	}
+
+	fileCh := make(chan string, len(files))
+	for _, f := range files {
+		fileCh <- f
+	}
+	close(fileCh)
+
+	var wg sync.WaitGroup
+	abort := make(chan struct{})
+	var aborted sync.Once
+
+	for i := 0; i < nWorkers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for path := range fileCh {
+				select {
+				case <-abort:
+					return
+				default:
+				}
+
+				result, err := scanner.ScanFile(path, cfg)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "%s: %v\n", path, err)
+					if !*errorsAsWarnings {
+						aborted.Do(func() { close(abort) })
+						return
+					}
+					continue
+				}
+				if !printResult(result) {
+					aborted.Do(func() { close(abort) })
+					return
+				}
 			}
+		}()
+	}
+	wg.Wait()
+}
+
+func collectFiles(target string, files *[]string) {
+	fi, err := os.Stat(target)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%s: %v\n", target, err)
+		return
+	}
+	if fi.IsDir() {
+		entries, _ := os.ReadDir(target)
+		for _, e := range entries {
+			// Skip symlinks inside directories to avoid loops.
+			if e.Type()&os.ModeSymlink != 0 {
+				continue
+			}
+			collectFiles(target+"/"+e.Name(), files)
 		}
+		return
+	}
+	if fi.Mode().IsRegular() {
+		*files = append(*files, target)
 	}
 }
