@@ -1,0 +1,37 @@
+# omega-scan client configuration.
+# Copy to client.toml and edit for your deployment.
+# Command-line flags override these values.
+
+[server]
+# gRPC server address (host:port).  Leave empty for local-only scanning.
+address = ""
+# Skip TLS verification (for self-signed certs).
+insecure = false
+# Override TLS hostname check (use when connecting by IP to named cert).
+tls_server_name = ""
+# CA certificate PEM file (default: system roots).
+tls_ca = ""
+# Client certificate for mTLS.
+tls_cert = ""
+# Client key for mTLS.
+tls_key = ""
+
+[auth]
+# API token for higher server rate limits.
+api_token = ""
+
+[scan]
+# Hilbert curve order (0 = auto-detect from file size).
+order = 0
+# Number of parallel scan workers.
+threads = 2
+# Continue processing directory after errors instead of stopping.
+errors_as_warnings = false
+
+[output]
+# Output machine-readable JSON instead of tabular text.
+json = false
+# Print aggregate statistics at exit and on Ctrl+C.
+stats = false
+# Print machine ID to stderr.
+verbose = false

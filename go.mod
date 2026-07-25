@@ -3,6 +3,7 @@ module github.com/support-intelligence/omega-scan
 go 1.25.0
 
 require (
+	github.com/BurntSushi/toml v1.6.0
 	github.com/denisbrodbeck/machineid v1.0.1
 	golang.org/x/sys v0.47.0
 	google.golang.org/grpc v1.82.1

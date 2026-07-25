@@ -30,12 +30,25 @@ import (
 	"time"
 
 	"github.com/denisbrodbeck/machineid"
+	"github.com/support-intelligence/omega-scan/internal/config"
 	"github.com/support-intelligence/omega-scan/internal/fingerprint"
 	"github.com/support-intelligence/omega-scan/internal/scanner"
 	"github.com/support-intelligence/omega-scan/internal/threat"
 
 	omegav1 "github.com/support-intelligence/omega-scan/api/omega/v1"
 )
+
+func applyDefault(field **string, cfgVal string) {
+	if **field == "" {
+		**field = cfgVal
+	}
+}
+
+func applyDefaultBool(field **bool, cfgVal bool) {
+	if !**field {
+		**field = cfgVal
+	}
+}
 
 func getMachineID() string {
 	id, err := machineid.ID()
@@ -78,6 +91,7 @@ Flags:
 
 func scanCmd() {
 	fs := flag.NewFlagSet("scan", flag.ExitOnError)
+	configPath := fs.String("config", "", "TOML config file path")
 	serverAddr := fs.String("server", "", "gRPC server address")
 	tlsCA := fs.String("tls-ca", "", "CA certificate PEM file (default: system roots)")
 	tlsCert := fs.String("tls-cert", "", "Client certificate PEM file (mTLS)")
@@ -89,10 +103,31 @@ func scanCmd() {
 	fpOrder := fs.Int("order", 0, "Hilbert curve order (0=auto)")
 	jsonOut := fs.Bool("json", false, "Output JSON")
 	verbose := fs.Bool("v", false, "Verbose: print machine ID")
-	threads := fs.Int("threads", 2, "Number of parallel scan workers")
+	threads := fs.Int("threads", 0, "Number of parallel scan workers (0=use config default)")
 	statsOut := fs.Bool("stats", false, "Print aggregate statistics at exit")
 
 	fs.Parse(os.Args[2:])
+
+	// Load config file.
+	cliCfg, _ := config.LoadConfig(*configPath)
+
+	// Apply config defaults for flags not explicitly set.
+	applyDefault(&serverAddr, cliCfg.Server.Address)
+	applyDefaultBool(&insecureConn, cliCfg.Server.Insecure)
+	applyDefault(&tlsServerName, cliCfg.Server.TLSServerName)
+	applyDefault(&tlsCA, cliCfg.Server.TLSCA)
+	applyDefault(&tlsCert, cliCfg.Server.TLSCert)
+	applyDefault(&tlsKey, cliCfg.Server.TLSKey)
+	applyDefault(&apiToken, cliCfg.Auth.APIToken)
+	if *fpOrder == 0 { *fpOrder = cliCfg.Scan.Order }
+	if *threads == 0 { *threads = cliCfg.Scan.Threads }
+	applyDefaultBool(&errorsAsWarnings, cliCfg.Scan.ErrorsAsWarnings)
+	applyDefaultBool(&jsonOut, cliCfg.Output.JSON)
+	applyDefaultBool(&statsOut, cliCfg.Output.Stats)
+	applyDefaultBool(&verbose, cliCfg.Output.Verbose)
+
+	// Ensure threads has a sensible minimum.
+	if *threads < 1 { *threads = 2 }
 	targets := fs.Args()
 	if len(targets) == 0 {
 		fmt.Fprintln(os.Stderr, "error: at least one target required")
@@ -169,7 +204,7 @@ func scanCmd() {
 		fmt.Fprintf(os.Stderr, "\n── Scan Statistics ──\n")
 		fmt.Fprintf(os.Stderr, "  Total lookups:     %d\n", st.calls)
 		fmt.Fprintf(os.Stderr, "  Malicious:         %d\n", st.malicious)
-		fmt.Fprintf(os.Stderr, "  Undetected/clean:  %d\n", st.undetected)
+		fmt.Fprintf(os.Stderr, "  Undetected:        %d\n", st.undetected)
 		fmt.Fprintf(os.Stderr, "  Severities:\n")
 		for _, s := range []string{"SEVERITY_CRITICAL", "SEVERITY_HIGH", "SEVERITY_MEDIUM", "SEVERITY_LOW", "SEVERITY_INFO", "SEVERITY_UNSPECIFIED"} {
 			if n, ok := st.severities[s]; ok {
@@ -209,7 +244,7 @@ func scanCmd() {
 		}()
 	}
 
-	cfg := scanner.DefaultConfig()
+	scanCfg := scanner.DefaultConfig()
 
 	// ── Scan callback (thread-safe for parallel workers) ──────────────────
 	var (
@@ -340,7 +375,7 @@ func scanCmd() {
 				default:
 				}
 
-				result, err := scanner.ScanFile(path, cfg)
+				result, err := scanner.ScanFile(path, scanCfg)
 				if err != nil {
 					fmt.Fprintf(os.Stderr, "%s: %v\n", path, err)
 					if !*errorsAsWarnings {
