@@ -17,6 +17,11 @@ make build
 # Scan a directory with JSON output and statistics
 ./bin/omega-scan scan --json --stats /scratch/zoo/2026/0803/
 
+# Use environment variables instead of flags
+export DEWILE_SERVER=api.dewile.net:8443
+export DEWILE_API_KEY=your-key-here
+omega-scan scan /path/to/malware.exe
+
 # Show version and machine ID
 ./bin/omega-scan version
 ```
@@ -38,7 +43,7 @@ Scans one or more files, directories, or URLs. Directories are recursed non-recu
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
 | `--config` | string | | Path to TOML config file |
-| `--server` | string | `localhost:8443` | gRPC threat-lookup server address |
+| `--server` | string | `api.dewile.net:8443` | gRPC threat-lookup server address |
 | `--tls-ca` | string | | CA certificate PEM file (default: system roots) |
 | `--tls-cert` | string | | Client certificate PEM file for mTLS |
 | `--tls-key` | string | | Client key PEM file for mTLS |
@@ -51,6 +56,17 @@ Scans one or more files, directories, or URLs. Directories are recursed non-recu
 | `--json` | bool | `false` | Output machine-readable JSON instead of tabular text |
 | `--stats` | bool | `false` | Print aggregate statistics at exit (and on Ctrl+C) |
 | `-v` | bool | `false` | Verbose: print machine ID to stderr |
+
+### Environment Variables
+
+Override defaults without flags or config files:
+
+| Variable | Overrides | Description |
+|----------|-----------|-------------|
+| `DEWILE_SERVER` | `--server` | gRPC server address (e.g. `api.dewile.net:8443`) |
+| `DEWILE_API_KEY` | `--api-token` | API token for rate-limit tiers |
+
+Priority: **command-line flag → environment variable → config file → built-in default**.
 
 ### `omega-scan version`
 
