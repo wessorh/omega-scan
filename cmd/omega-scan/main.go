@@ -92,7 +92,7 @@ Flags:
 func scanCmd() {
 	fs := flag.NewFlagSet("scan", flag.ExitOnError)
 	configPath := fs.String("config", "", "TOML config file path")
-	serverAddr := fs.String("server", "", "gRPC server address")
+	serverAddr := fs.String("server", "api.dewile.net:8443", "gRPC server address")
 	tlsCA := fs.String("tls-ca", "", "CA certificate PEM file (default: system roots)")
 	tlsCert := fs.String("tls-cert", "", "Client certificate PEM file (mTLS)")
 	tlsKey := fs.String("tls-key", "", "Client key PEM file (mTLS)")
