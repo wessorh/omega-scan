@@ -119,6 +119,14 @@ func scanCmd() {
 	applyDefault(&tlsCert, cliCfg.Server.TLSCert)
 	applyDefault(&tlsKey, cliCfg.Server.TLSKey)
 	applyDefault(&apiToken, cliCfg.Auth.APIToken)
+
+		// Environment variable overrides.
+		if v := os.Getenv("DEWILE_SERVER"); v != "" {
+			*serverAddr = v
+		}
+		if v := os.Getenv("DEWILE_API_KEY"); v != "" {
+			*apiToken = v
+		}
 	if *fpOrder == 0 { *fpOrder = cliCfg.Scan.Order }
 	if *threads == 0 { *threads = cliCfg.Scan.Threads }
 	applyDefaultBool(&errorsAsWarnings, cliCfg.Scan.ErrorsAsWarnings)
