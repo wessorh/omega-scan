@@ -145,7 +145,7 @@ func scanCmd() {
 	// ── Init fingerprint library ──────────────────────────────────────────
 	order := uint32(*fpOrder)
 	if order == 0 {
-		order = 13 // reasonable default for general use (64 MB cache)
+		order = 11 // order 11 covers files up to ~4 MB (8 MB cache)
 	}
 	log.Printf("initializing holloman3 fingerprint library (order %d)...", order)
 	if err := fingerprint.Init(order); err != nil {
