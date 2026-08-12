@@ -44,8 +44,10 @@ func EnclosingOrder(size int64) uint32 {
 	if size <= 0 {
 		return 5 // minimum for any non-empty buffer
 	}
-	// log₂(size): find the position of the highest set bit
-	bits := bits.Len64(uint64(size))
+	// Bit length of (size-1) = ceil(log2(size)); then ceil(/2) = ceil(log2(size)/2),
+	// the smallest order N with 4^N >= size. Using size-1 (not size) avoids an
+	// off-by-one at exact power-of-4 sizes (e.g. 1024 -> order 5, not 6).
+	bits := bits.Len64(uint64(size - 1))
 	if bits == 0 {
 		return 5
 	}

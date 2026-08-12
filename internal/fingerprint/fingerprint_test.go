@@ -32,12 +32,12 @@ func TestEnclosingOrder(t *testing.T) {
 		want uint32
 	}{
 		{0, 5},
-		{1024, 6},      // 2^10 → ceil(10/2) = 5 → but clamped to 5? No: bits=11, order=6
-		{4096, 7},      // bits=13, order=7
-		{16384, 8},     // 2^14 → bits=15, ceil(15/2)=8
-		{65536, 9},     // bits=17, order=9
-		{1 << 20, 11},  // bits=21, order=11
-		{1 << 28, 15},  // bits=29, order=15
+		{1024, 5},      // 2^10 = 4^5 → order 5
+		{4096, 6},      // 4^6 → order 6
+		{16384, 7},     // 4^7 → order 7
+		{65536, 8},     // 4^8 → order 8
+		{1 << 20, 10},  // 4^10 → order 10
+		{1 << 28, 14},  // 4^14 → order 14
 	}
 	for _, tt := range tests {
 		got := EnclosingOrder(tt.size)
