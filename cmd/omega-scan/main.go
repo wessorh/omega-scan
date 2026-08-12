@@ -369,33 +369,18 @@ func scanCmd() {
 	close(fileCh)
 
 	var wg sync.WaitGroup
-	abort := make(chan struct{})
-	var aborted sync.Once
 
 	for i := 0; i < nWorkers; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			for path := range fileCh {
-				select {
-				case <-abort:
-					return
-				default:
-				}
-
 				result, err := scanner.ScanFile(path, scanCfg)
 				if err != nil {
 					fmt.Fprintf(os.Stderr, "%s: %v\n", path, err)
-					if !*errorsAsWarnings {
-						aborted.Do(func() { close(abort) })
-						return
-					}
 					continue
 				}
-				if !printResult(result) {
-					aborted.Do(func() { close(abort) })
-					return
-				}
+				printResult(result)
 			}
 		}()
 	}
