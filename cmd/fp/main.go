@@ -1,5 +1,5 @@
 // fp — print the omega-scan holloman3 fingerprint for each file argument.
-// Output: "<order_char><32 hex>" (33 chars), one per line.
+// Output: "<order_char>.<32 hex>" (34 chars), one per line.
 
 package main
 
@@ -29,12 +29,6 @@ func main() {
 			continue
 		}
 		order, _ := fingerprint.CalculateOrder(int64(len(data)))
-		var c byte
-		if int(order) < len(fingerprint.OrderAlphabet) {
-			c = fingerprint.OrderAlphabet[order]
-		} else {
-			c = '?'
-		}
-		fmt.Printf("%c%032x\n", c, fp)
+		fmt.Println(fingerprint.BuildClusterID(order, fp))
 	}
 }
