@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/support-intelligence/omega-scan/internal/fingerprint"
+	"github.com/support-intelligence/omega-scan/fingerprint"
 )
 
 // Result holds the scan output for a single target.

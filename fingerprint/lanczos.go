@@ -126,15 +126,15 @@ type weightEntry struct {
 }
 
 // makeIntegerKernel converts floating-point Lanczos weights to 14-bit
-// signed fixed-point int16 coefficients using error-diffusion rounding.
+// signed fixed-point int32 coefficients using error-diffusion rounding.
 //
 // Matches make_integer_kernel() in lanczos_avx2_optimized.c exactly,
 // including the sort-by-absolute-weight ordering.
 func makeIntegerKernel(
 	taps int, size int,
 	weights []float64, sums []float64,
-) []int16 {
-	coeffs := make([]int16, size*taps)
+) []int32 {
+	coeffs := make([]int32, size*taps)
 	sorted := make([]weightEntry, taps)
 
 	for i := 0; i < size; i++ {
@@ -157,7 +157,7 @@ func makeIntegerKernel(
 		for j := 0; j < taps; j++ {
 			weightVal := sorted[j].weight*scale + diff
 			iw := math.Floor(weightVal + 0.5)
-			c[sorted[j].offset] = int16(iw)
+			c[sorted[j].offset] = int32(iw)
 			diff = weightVal - iw
 		}
 	}

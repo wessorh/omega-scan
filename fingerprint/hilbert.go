@@ -51,64 +51,29 @@ func NewCurve(order uint32) (*Curve, error) {
 		Points:    make([]PackedCoord, nPoints),
 	}
 
-	if nPoints > 0 && isAVX2Available() {
-		// Build a sequential distance array.
-		distances := make([]uint32, nPoints)
-		for d := uint64(0); d < nPoints; d++ {
-			distances[d] = uint32(d)
-		}
-		// Call the AVX2 Plan 9 assembly batch converter.
-		hilbertD2XYBatchAVX2(
-			&distances[0],
-			(*uint64)(unsafe.Pointer(&c.Points[0])),
-			nPoints,
-			order,
-		)
-	} else {
-		// Scalar fallback for non-AVX2 platforms.
-		for d := uint64(0); d < nPoints; d++ {
-			x, y := d2xyScalar(order, d)
-			c.Points[d] = PackCoord(x, y)
-		}
+	// Build a sequential distance array and convert with the AVX2 asm.
+	// All deployment targets support AVX2, so there is no fallback.
+	distances := make([]uint32, nPoints)
+	for d := uint64(0); d < nPoints; d++ {
+		distances[d] = uint32(d)
 	}
+	hilbertD2XYBatchAVX2(
+		&distances[0],
+		(*uint64)(unsafe.Pointer(&c.Points[0])),
+		nPoints,
+		order,
+	)
 
 	return c, nil
-}
-
-// d2xyScalar is the pure-Go fallback Hilbert d2xy algorithm.
-func d2xyScalar(order uint32, d uint64) (x, y uint32) {
-	n := uint32(1) << order
-	var rx, ry uint32
-
-	for s := uint32(1); s < n; s <<= 1 {
-		rx = uint32((d >> 1) & 1)
-		ry = uint32((d ^ uint64(rx)) & 1)
-		rot(s, &x, &y, rx, ry)
-		x += s * rx
-		y += s * ry
-		d >>= 2
-	}
-	return x, y
-}
-
-// rot applies the Hilbert curve rotation/reflection step.
-func rot(n uint32, x, y *uint32, rx, ry uint32) {
-	if ry == 0 {
-		if rx == 1 {
-			*x = n - 1 - *x
-			*y = n - 1 - *y
-		}
-		*x, *y = *y, *x
-	}
 }
 
 // ── Global curve cache ──────────────────────────────────────────────────
 
 var (
-	curveMu    sync.Mutex
-	evenCurve  *Curve // for even-parity orders
-	oddCurve   *Curve // for odd-parity orders
-	maxCached  uint32
+	curveMu   sync.Mutex
+	evenCurve *Curve // for even-parity orders
+	oddCurve  *Curve // for odd-parity orders
+	maxCached uint32
 )
 
 // Init initializes the global Hilbert curve cache.  Must be called

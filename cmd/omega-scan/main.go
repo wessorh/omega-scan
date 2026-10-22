@@ -31,7 +31,7 @@ import (
 
 	"github.com/denisbrodbeck/machineid"
 	"github.com/support-intelligence/omega-scan/internal/config"
-	"github.com/support-intelligence/omega-scan/internal/fingerprint"
+	"github.com/support-intelligence/omega-scan/fingerprint"
 	"github.com/support-intelligence/omega-scan/internal/scanner"
 	"github.com/support-intelligence/omega-scan/internal/threat"
 

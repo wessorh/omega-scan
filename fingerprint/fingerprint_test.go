@@ -32,12 +32,12 @@ func TestEnclosingOrder(t *testing.T) {
 		want uint32
 	}{
 		{0, 5},
-		{1024, 5},      // 2^10 = 4^5 → order 5
-		{4096, 6},      // 4^6 → order 6
-		{16384, 7},     // 4^7 → order 7
-		{65536, 8},     // 4^8 → order 8
-		{1 << 20, 10},  // 4^10 → order 10
-		{1 << 28, 14},  // 4^14 → order 14
+		{1024, 5},     // 2^10 = 4^5 → order 5
+		{4096, 6},     // 4^6 → order 6
+		{16384, 7},    // 4^7 → order 7
+		{65536, 8},    // 4^8 → order 8
+		{1 << 20, 10}, // 4^10 → order 10
+		{1 << 28, 14}, // 4^14 → order 14
 	}
 	for _, tt := range tests {
 		got := EnclosingOrder(tt.size)
@@ -301,7 +301,7 @@ func TestFingerprintVariousSizes(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			data := make([]byte, size)
 			for i := range data {
-				data[i] = byte((i * 37 + 13) & 0xFF)
+				data[i] = byte((i*37 + 13) & 0xFF)
 			}
 			fp, err := FingerprintBuffer(data)
 			if err != nil {

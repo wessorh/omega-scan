@@ -3,11 +3,13 @@ package fingerprint
 import (
 	"errors"
 	"fmt"
+
+	"github.com/wessorh/libholloman3"
 )
 
 // Version returns the fingerprint library version string.
 func Version() string {
-	return "omega-scan-holloman3 1.0.0 (pure-go + Plan 9 asm)"
+	return "omega-scan-holloman3 1.0.0 (libholloman3 SIMD)"
 }
 
 // FingerprintBuffer computes a 16-byte holloman3 perceptual fingerprint
@@ -63,18 +65,16 @@ func FingerprintBuffer(data []byte) ([16]byte, error) {
 	// Step 4: Lanczos-3 vertical scale (dim×dim → dim×4).
 	intermediate := make([]byte, dimInt*4)
 
-	vWeights, vSums, vOffsets, vTaps := makeDoubleKernel(dimInt, 4)
+	vWeights, vSums, _, vTaps := makeDoubleKernel(dimInt, 4)
 	vCoeffs := makeIntegerKernel(vTaps, 4, vWeights, vSums)
-	vScaleGo(intermediate, mapBuf, vCoeffs, vOffsets, vTaps,
-		dimInt, 4, dimInt, dimInt)
+	libholloman3.VScale(intermediate, mapBuf, vCoeffs, dimInt)
 
 	// Step 5: Lanczos-3 horizontal scale (dim×4 → 4×4).
 	final := make([]byte, 4*4)
 
-	hWeights, hSums, hOffsets, hTaps := makeDoubleKernel(dimInt, 4)
+	hWeights, hSums, _, hTaps := makeDoubleKernel(dimInt, 4)
 	hCoeffs := makeIntegerKernel(hTaps, 4, hWeights, hSums)
-	hScaleGo(final, intermediate, hCoeffs, hOffsets, hTaps,
-		4, 4, 4, dimInt)
+	libholloman3.HScale(final, intermediate, hCoeffs, dimInt)
 
 	// Step 6: Rotate 90° clockwise.
 	var rotated [16]byte

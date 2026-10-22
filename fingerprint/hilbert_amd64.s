@@ -13,7 +13,7 @@
 #include "textflag.h"
 
 // func hilbertD2XYBatchAVX2(distances *uint32, packed *uint64, count uint64, order uint32)
-TEXT ·hilbertD2XYBatchAVX2(SB), NOSPLIT, $0-32
+TEXT ·hilbertD2XYBatchAVX2(SB), NOSPLIT, $0-28
 	MOVQ    distances+0(FP), R10   // R10 = distances pointer
 	MOVQ    packed+8(FP), R11      // R11 = packed pointer
 	MOVQ    count+16(FP), R12      // R12 = count (loop counter)
